@@ -30,6 +30,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
+#include <algorithm>
+#include <chrono>
 using namespace std;
 
 const int BUFFSIZE=1500;
@@ -41,11 +43,12 @@ const int BUFFSIZE=1500;
  * @param nbufs number of buffers
  * @param bufsize buffer size
  */
-void Test1(int clientSd,char **databuf,int nbufs, int bufsize)
+void Test1(int clientSd,char *databuf,int nbufs, int bufsize)
 {
+   // cout << "inside test1" << endl;
     for (int j = 0; j < nbufs; j++)
     {
-        write(clientSd, databuf[j], bufsize);
+        write(clientSd, &databuf[j], bufsize);
     }
 }
 
@@ -56,12 +59,13 @@ void Test1(int clientSd,char **databuf,int nbufs, int bufsize)
  * @param nbufs number of buffers
  * @param bufsize buffer size
  */
-void Test2(int clientSd,char **databuf,int nbufs, int bufsize)
+void Test2(int clientSd,char *databuf,int nbufs, int bufsize)
 {
+    //cout << "inside test2" << endl;
     struct iovec vector[nbufs];
     for (int j = 0; j < nbufs; j++)
     {
-        vector[j].iov_base = databuf[j];
+        vector[j].iov_base = &databuf[j];
         vector[j].iov_len = bufsize;
     }
     writev(clientSd, vector, nbufs);
@@ -75,8 +79,9 @@ void Test2(int clientSd,char **databuf,int nbufs, int bufsize)
  * @param nbufs number of buffers
  * @param bufsize buffer size
  */
-void Test3(int clientSd,char **databuf,int nbufs, int bufsize)
+void Test3(int clientSd,char *databuf,int nbufs, int bufsize)
 {
+   // cout << "inside test3" << endl;
     write(clientSd, databuf, nbufs * bufsize);
 }
 
@@ -94,7 +99,7 @@ int main(int argc, char *argv[])
     char *serverName = argv[1];   //the name of the server
     char *serverPort = argv[2]; //the IP port number used by server (use the last 5 digits of your student id)
     int iteration;
-    int type;
+    int type = atoi(argv[6]); //the type of transfer scenario: 1, 2, or 3 ;
     // iteration value validation
     if ( atoi(argv[3]) <= 0)
     {
@@ -107,23 +112,9 @@ int main(int argc, char *argv[])
 
     int nbufs = atoi(argv[4]); //the number of data buffers
     int bufsize = atoi(argv[5]); //the size of each data buffer (in bytes)
-
-    // type value validation
-    if ( atoi(argv[6]) != 1 || atoi(argv[6]) != 2 || atoi(argv[6]) !=3)
-    {
-        printf( "Type usage: 1 or 2 or 1 \n" );
-        return -1;
-    }
-    else
-    {
-        type = atoi(argv[6]); //the type of transfer scenario: 1, 2, or 3 ;
-    }
-
     char databuf[nbufs*bufsize];
     //char *databuf;
     int clientSD = -1;
-
-
 
     /*
      * Use getaddrinfo() to get addrinfo structure corresponding to serverName / Port
@@ -144,9 +135,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    /*
-     * Iterate through addresses and connect
-     */
+    //Iterate through addresses and connect
     for (rp = result; rp != NULL; rp = rp->ai_next)
     {
         clientSD = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
@@ -187,7 +176,6 @@ int main(int argc, char *argv[])
     //	Send a message to the server letting it know the number of iterations of the test it will perform
     databuf[0] = iteration;
     write(clientSD, databuf, BUFFSIZE);
-    bzero(databuf, BUFFSIZE); //zero out buffer
 
     // Write into the buffer (not sure if required)
     for (int i = 0; i < BUFFSIZE; i++)
@@ -195,6 +183,7 @@ int main(int argc, char *argv[])
         databuf[i] = 'z';
     }
 
+    cout << "Testing the Socket"<< endl;
     //Perform the appropriate number of tests with the server and measure the time this takes
     std::chrono::time_point<std::chrono::system_clock> start, end;
     start = std::chrono::system_clock::now();
@@ -202,25 +191,25 @@ int main(int argc, char *argv[])
     for(int i=0; i < iteration; i++) {
         switch (type) {
             case 1:
-                Test1(clientSD, reinterpret_cast<char **>(databuf), nbufs, bufsize);
+                Test1(clientSD, databuf, nbufs, bufsize);
                 break;
             case 2:
-                Test1(clientSD, reinterpret_cast<char **>(databuf), nbufs, bufsize);
+                Test2(clientSD, databuf, nbufs, bufsize);
                 break;
             case 3:
-                Test1(clientSD, reinterpret_cast<char **>(databuf), nbufs, bufsize);
+                Test3(clientSD, databuf, nbufs, bufsize);
                 break;
         }
     }
     end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
-
+    cout << "End of Testing the Socket"<< endl;
     //Receive from the server a message with the number read() system calls it performed
-    int bytesRead = read(clientSD, databuf, BUFFSIZE);
+    read(clientSD, databuf, BUFFSIZE);
 
     //Print information about the test (use chrono library to time the
     //Test (1,2, or 3): time = xx usec, #reads = yy, throughput zz Gbps
-    cout << "elapsed time taken for test: " << elapsed_seconds.count() << "s\n" << "Number of reads: " <<  databuf[0]
+    cout << "Elapsed time taken for test: " << elapsed_seconds.count() << "s\n" << "Number of reads: " <<  databuf[0]
     << "\nThroughput: " << " "  << endl;
 
     close(clientSD);

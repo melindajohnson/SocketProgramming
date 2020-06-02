@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <pthread.h>
+
 using namespace std;
 
 const int BUFFSIZE = 1500;
@@ -39,40 +40,47 @@ const int NUM_CONNECTIONS = 5;
 struct clientDataArgs{
     int clientSocket;
     char* databuf;
-    //int iterations;
 };
 
 void *thread_runner (void *args)
 {
+    cout << "inside thread runner" << endl;
     int number_of_reads = 0;
     int total_bytes_read = 0;
+    int bytesRead = 0;
     //Receive a message by the client with the number of iterations to perform
     clientDataArgs clientData = *(clientDataArgs*) args;
-    int bytesRead = read(clientData.clientSocket, clientData.databuf, BUFFSIZE);
+    cout << clientData.clientSocket;
+    cout << clientData.databuf;
+    read(clientData.clientSocket, clientData.databuf, BUFFSIZE);
     //Receive a message by the client with the number of iterations to perform
+
     int iteration = clientData.databuf[0];
     cout << "iteration: " << iteration << endl;
-    bzero(clientData.databuf, BUFFSIZE); //zeroed out buffer
 
     //Read from the client the appropriate number of iterations of BUFSIZE amounts of data
     //Note: the read system call may return without reading the entire data buffer.
     //You must repeat calling read until you have read a BUFSIZE amount of data.
     //This should be done for each repetition on the server.
  //iteration 20000*1500 loop
-    while(total_bytes_read != BUFFSIZE){
+    for(int i=0; i<iteration ; i++){
         bytesRead = read(clientData.clientSocket, clientData.databuf, BUFFSIZE);
         total_bytes_read += bytesRead;
         if(bytesRead > 0){
+            cout << "inside if" << endl;
             number_of_reads++ ;
         }
     }
 
+    cout << "end of iteration" << endl;
+
     //	Send the number of read() calls made as an acknowledgment to the client
     clientData.databuf[0] = number_of_reads;
-    int bytesWritten = write(clientData.clientSocket, clientData.databuf, BUFFSIZE);
+    write(clientData.clientSocket, clientData.databuf, BUFFSIZE);
   //  cout << "Bytes Written: " << bytesWritten << endl;
-
+    cout << "Closing the socket" << endl;
     close(clientData.clientSocket);
+    pthread_exit(0);
 
 }
 
@@ -131,6 +139,7 @@ Note: the read system call may return without reading the entire data buffer.
 //    •
 
     //listen and accept
+    cout << "listening for client socket"<< endl;
     listen(serverSD, NUM_CONNECTIONS);       //setting number of pending connections
 
     while(1)
@@ -143,7 +152,7 @@ Note: the read system call may return without reading the entire data buffer.
             continue;
         }
 
-       // cout << "Accepted Socket #: " << newSD <<endl;
+        cout << "Accepted Socket #: " << newSD <<endl;
 
         //Creates a struct with client information
         struct clientDataArgs *args = new clientDataArgs;
@@ -153,6 +162,7 @@ Note: the read system call may return without reading the entire data buffer.
         args->databuf = databuf;
 
         //Creates a thread to service that request
+        cout << "Creating a new thread"<< endl;
         pthread_create(&thread[thread_num], NULL, thread_runner, (void*) args);
         thread_num++;
         //terminate thread
