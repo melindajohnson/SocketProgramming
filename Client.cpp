@@ -45,11 +45,15 @@ const int BUFFSIZE=1500;
  */
 void Test1(int clientSd,char *databuf,int nbufs, int bufsize)
 {
-   // cout << "inside test1" << endl;
+    //
+    int totalbyteWriten = 0 ;
+    int byteWriten ;
     for (int j = 0; j < nbufs; j++)
     {
-        write(clientSd, &databuf[j], bufsize);
+        byteWriten= write(clientSd, &databuf[j], bufsize);
+        totalbyteWriten += byteWriten;
     }
+    cout << "totalbyteWriten" <<  totalbyteWriten <<endl;
 }
 
 /**
@@ -81,7 +85,7 @@ void Test2(int clientSd,char *databuf,int nbufs, int bufsize)
  */
 void Test3(int clientSd,char *databuf,int nbufs, int bufsize)
 {
-   // cout << "inside test3" << endl;
+    // cout << "inside test3" << endl;
     write(clientSd, databuf, nbufs * bufsize);
 }
 
@@ -112,7 +116,7 @@ int main(int argc, char *argv[])
 
     int nbufs = atoi(argv[4]); //the number of data buffers
     int bufsize = atoi(argv[5]); //the size of each data buffer (in bytes)
-    char databuf[nbufs*bufsize];
+    char databuf[nbufs][bufsize];
     //char *databuf;
     int clientSD = -1;
 
@@ -174,14 +178,13 @@ int main(int argc, char *argv[])
 
 
     //	Send a message to the server letting it know the number of iterations of the test it will perform
-    databuf[0] = iteration;
-    write(clientSD, databuf, BUFFSIZE);
+    send(clientSD, &iteration, sizeof(iteration), 0);
 
     // Write into the buffer (not sure if required)
-    for (int i = 0; i < BUFFSIZE; i++)
-    {
-        databuf[i] = 'z';
-    }
+//    for (int i = 0; i < BUFFSIZE; i++)
+//    {
+//        databuf[i] = ' ';
+//    }
 
     cout << "Testing the Socket"<< endl;
     //Perform the appropriate number of tests with the server and measure the time this takes
@@ -190,27 +193,42 @@ int main(int argc, char *argv[])
 
     for(int i=0; i < iteration; i++) {
         switch (type) {
-            case 1:
-                Test1(clientSD, databuf, nbufs, bufsize);
+            case 1: {
+                for (int j = 0; j < nbufs; j++) {
+                    write(clientSD, &databuf[j], bufsize);
+                }
                 break;
+            }
             case 2:
-                Test2(clientSD, databuf, nbufs, bufsize);
+            {
+                struct iovec vector[nbufs];
+                for (int j = 0; j < nbufs; j++) {
+                    vector[j].iov_base = &databuf[j];
+                    vector[j].iov_len = bufsize;
+                }
+                writev(clientSD, vector, nbufs);
                 break;
-            case 3:
-                Test3(clientSD, databuf, nbufs, bufsize);
+            }
+            case 3: {
+
+                write(clientSD, databuf, nbufs * bufsize);
                 break;
+            }
         }
     }
     end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
     cout << "End of Testing the Socket"<< endl;
-    //Receive from the server a message with the number read() system calls it performed
-    read(clientSD, databuf, BUFFSIZE);
-
-    //Print information about the test (use chrono library to time the
-    //Test (1,2, or 3): time = xx usec, #reads = yy, throughput zz Gbps
-    cout << "Elapsed time taken for test: " << elapsed_seconds.count() << "s\n" << "Number of reads: " <<  databuf[0]
-    << "\nThroughput: " << " "  << endl;
+//Receive from the server a message with the number read() system calls it performed
+    int number_of_reads = 0;
+    recv(clientSD, &number_of_reads, sizeof(number_of_reads) , 0);
+//    int bytesRead = read(clientSD, databuf, BUFFSIZE);
+//    cout << "Bytes Read: " << bytesRead << endl;
+//    cout << databuf[0] << endl;
+//Print information about the test (use chrono library to time the
+//Test (1,2, or 3): time = xx usec, #reads = yy, throughput zz Gbps
+    cout << "Elapsed time taken for test: " << elapsed_seconds.count() << "s\n" << "Number of reads: " <<  number_of_reads
+         << "\nThroughput: " << " "  << endl;
 
     close(clientSD);
     return 0;

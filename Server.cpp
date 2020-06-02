@@ -44,61 +44,45 @@ struct clientDataArgs{
 
 void *thread_runner (void *args)
 {
-    cout << "inside thread runner" << endl;
+
     int number_of_reads = 0;
     int total_bytes_read = 0;
     int bytesRead = 0;
-    //Receive a message by the client with the number of iterations to perform
     clientDataArgs clientData = *(clientDataArgs*) args;
-    cout << clientData.clientSocket;
-    cout << clientData.databuf;
-    read(clientData.clientSocket, clientData.databuf, BUFFSIZE);
     //Receive a message by the client with the number of iterations to perform
 
-    int iteration = clientData.databuf[0];
-    cout << "iteration: " << iteration << endl;
+    //Receive a message by the client with the number of iterations to perform
+    int iteration = 0;
+    recv(clientData.clientSocket, &iteration, sizeof(iteration) , 0);
 
+    int i = 0;
     //Read from the client the appropriate number of iterations of BUFSIZE amounts of data
-    //Note: the read system call may return without reading the entire data buffer.
-    //You must repeat calling read until you have read a BUFSIZE amount of data.
-    //This should be done for each repetition on the server.
- //iteration 20000*1500 loop
-    for(int i=0; i<iteration ; i++){
+    //repeat calling read until you have read a BUFSIZE amount of data
+    while(total_bytes_read < iteration*BUFFSIZE ) {
+
         bytesRead = read(clientData.clientSocket, clientData.databuf, BUFFSIZE);
-        total_bytes_read += bytesRead;
         if(bytesRead > 0){
-            cout << "inside if" << endl;
             number_of_reads++ ;
         }
+        total_bytes_read += bytesRead;
+        i++;
     }
-
-    cout << "end of iteration" << endl;
+   // cout << "total_bytes_read" << total_bytes_read << endl;
 
     //	Send the number of read() calls made as an acknowledgment to the client
-    clientData.databuf[0] = number_of_reads;
-    write(clientData.clientSocket, clientData.databuf, BUFFSIZE);
-  //  cout << "Bytes Written: " << bytesWritten << endl;
-    cout << "Closing the socket" << endl;
+    send(clientData.clientSocket, &number_of_reads, sizeof(number_of_reads), 0);
+   // cout << "number_of_reads" << number_of_reads << endl;
+    //Close this connection.
     close(clientData.clientSocket);
+   // cout << "Socket closed" << endl;
+   //Terminate the thread
     pthread_exit(0);
 
 }
 
 int main(int argc, char *argv[])
 {
-    /*
- * The servicing thread will do the following:
-1.	Allocate dataBuf[BUFSIZE], where BUFSIZE = 1500 to read in data being sent by client
-2.	Receive a message by the client with the number of iterations to perform
-3.	Read from the client the appropriate number of iterations of BUFSIZE amounts of data
-Note: the read system call may return without reading the entire data buffer.
- You must repeat calling read until you have read a BUFSIZE amount of data. This should be done for each repetition on the server.
-4.	Send the number of read() calls made as an acknowledgment to the client
-5.	Close this connection.
-6.	Terminate the thread
-
- */
-
+    
     //validate the arguments
     if ( argc != 2 )
     {
@@ -134,35 +118,36 @@ Note: the read system call may return without reading the entire data buffer.
         cerr << "Bind Failed" << endl;
     }
 
-//    The main thread of a server will run in a dispatch loop which:
-//    •	Accepts a new connection.
-//    •
+
 
     //listen and accept
     cout << "listening for client socket"<< endl;
     listen(serverSD, NUM_CONNECTIONS);       //setting number of pending connections
 
+    //The main thread of the server will run in a dispatch loop which accepts a new connection.
     while(1)
     {
         sockaddr_in newSockAddr;
         socklen_t newSockAddrSize = sizeof(newSockAddr);
-        int newSD = accept(serverSD, (sockaddr *) &newSockAddr, &newSockAddrSize); //socket of client is returned
+        //socket of client is returned
+        int newSD = accept(serverSD, (sockaddr *) &newSockAddr, &newSockAddrSize);
         if (newSD == -1) {
             std::cerr << "Error while Accepting on socket\n";
             continue;
         }
 
-        cout << "Accepted Socket #: " << newSD <<endl;
+       // cout << "Accepted Socket #: " << newSD <<endl;
+
+        // create a data buffer of BUFFSIZE
+        char databuf[BUFFSIZE];
+        bzero(databuf, BUFFSIZE); //zeroed out buffer
 
         //Creates a struct with client information
         struct clientDataArgs *args = new clientDataArgs;
         args->clientSocket = newSD;
-        char databuf[BUFFSIZE];
-        bzero(databuf, BUFFSIZE); //zeroed out buffer
         args->databuf = databuf;
 
         //Creates a thread to service that request
-        cout << "Creating a new thread"<< endl;
         pthread_create(&thread[thread_num], NULL, thread_runner, (void*) args);
         thread_num++;
         //terminate thread
