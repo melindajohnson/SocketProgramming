@@ -84,22 +84,46 @@ void Test3(int clientSd,char **databuf,int nbufs, int bufsize)
 int main(int argc, char *argv[])
 {
 
-     // Argument validation
+    // Argument validation
     if ( argc != 7 )
-	{
-		printf( "usage: client #serverName #port #repetition #nbufs #bufsize #type \n" );
-		return -1;
-	}
+    {
+        printf( "usage: client #serverName #port #repetition #nbufs #bufsize #type \n" );
+        return -1;
+    }
 
     char *serverName = argv[1];   //the name of the server
     char *serverPort = argv[2]; //the IP port number used by server (use the last 5 digits of your student id)
-    int repetition = atoi(argv[3]); //the repetition of sending a set of data buffers
+    int iteration;
+    int type;
+    // iteration value validation
+    if ( atoi(argv[3]) <= 0)
+    {
+        printf( "Iteration usage: greater than 0 \n" );
+        return -1;
+    }
+    else{
+        iteration = atoi(argv[3]); //the repetition of sending a set of data buffers
+    }
+
     int nbufs = atoi(argv[4]); //the number of data buffers
     int bufsize = atoi(argv[5]); //the size of each data buffer (in bytes)
-    int type = atoi(argv[6]); //the type of transfer scenario: 1, 2, or 3
+
+    // type value validation
+    if ( atoi(argv[6]) != 1 || atoi(argv[6]) != 2 || atoi(argv[6]) !=3)
+    {
+        printf( "Type usage: 1 or 2 or 1 \n" );
+        return -1;
+    }
+    else
+    {
+        type = atoi(argv[6]); //the type of transfer scenario: 1, 2, or 3 ;
+    }
+
     char databuf[nbufs*bufsize];
     //char *databuf;
     int clientSD = -1;
+
+
 
     /*
      * Use getaddrinfo() to get addrinfo structure corresponding to serverName / Port
@@ -158,28 +182,47 @@ int main(int argc, char *argv[])
     freeaddrinfo(result);
 
     //databuf = new char[BUFFSIZE]; was used in previous code
-    // Write and read data over network
 
 
     //	Send a message to the server letting it know the number of iterations of the test it will perform
+    databuf[0] = iteration;
+    write(clientSD, databuf, BUFFSIZE);
+    bzero(databuf, BUFFSIZE); //zero out buffer
+
+    // Write into the buffer (not sure if required)
     for (int i = 0; i < BUFFSIZE; i++)
     {
         databuf[i] = 'z';
     }
 
-    //Perform the appropriate number of tests with the server (measure the time this takes;
-    // I would recommend the  chrono time library)
-    int bytesWritten = write(clientSD, databuf, BUFFSIZE);
-    cout << "Bytes Written: " << bytesWritten << endl;
+    //Perform the appropriate number of tests with the server and measure the time this takes
+    std::chrono::time_point<std::chrono::system_clock> start, end;
+    start = std::chrono::system_clock::now();
+
+    for(int i=0; i < iteration; i++) {
+        switch (type) {
+            case 1:
+                Test1(clientSD, reinterpret_cast<char **>(databuf), nbufs, bufsize);
+                break;
+            case 2:
+                Test1(clientSD, reinterpret_cast<char **>(databuf), nbufs, bufsize);
+                break;
+            case 3:
+                Test1(clientSD, reinterpret_cast<char **>(databuf), nbufs, bufsize);
+                break;
+        }
+    }
+    end = std::chrono::system_clock::now();
+    std::chrono::duration<double> elapsed_seconds = end - start;
 
     //Receive from the server a message with the number read() system calls it performed
     int bytesRead = read(clientSD, databuf, BUFFSIZE);
-    cout << "Bytes Read: " << bytesRead << endl;
-    cout << databuf[13] << endl;
-
 
     //Print information about the test (use chrono library to time the
     //Test (1,2, or 3): time = xx usec, #reads = yy, throughput zz Gbps
+    cout << "elapsed time taken for test: " << elapsed_seconds.count() << "s\n" << "Number of reads: " <<  databuf[0]
+    << "\nThroughput: " << " "  << endl;
+
     close(clientSD);
     return 0;
 }

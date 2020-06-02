@@ -58,7 +58,7 @@ void *thread_runner (void *args)
     //Note: the read system call may return without reading the entire data buffer.
     //You must repeat calling read until you have read a BUFSIZE amount of data.
     //This should be done for each repetition on the server.
-
+ //iteration 20000*1500 loop
     while(total_bytes_read != BUFFSIZE){
         bytesRead = read(clientData.clientSocket, clientData.databuf, BUFFSIZE);
         total_bytes_read += bytesRead;
@@ -156,7 +156,7 @@ Note: the read system call may return without reading the entire data buffer.
         pthread_create(&thread[thread_num], NULL, thread_runner, (void*) args);
         thread_num++;
         //terminate thread
-        pthread_join(thread[thread_num], NULL );
+        pthread_detach(pthread_self());
 
     }
 
