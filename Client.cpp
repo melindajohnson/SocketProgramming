@@ -36,63 +36,8 @@ using namespace std;
 
 const int BUFFSIZE=1500;
 
-/**
- * Multiple write test
- * @param clientSd file descriptor of client socket
- * @param databuf data buffer
- * @param nbufs number of buffers
- * @param bufsize buffer size
- */
-void Test1(int clientSd,char *databuf,int nbufs, int bufsize)
-{
-    //
-    int totalbyteWriten = 0 ;
-    int byteWriten ;
-    for (int j = 0; j < nbufs; j++)
-    {
-        byteWriten= write(clientSd, &databuf[j], bufsize);
-        totalbyteWriten += byteWriten;
-    }
-    cout << "totalbyteWriten" <<  totalbyteWriten <<endl;
-}
-
-/**
- * Writev test
- * @param clientSd file descriptor of client socket
- * @param databuf data buffer
- * @param nbufs number of buffers
- * @param bufsize buffer size
- */
-void Test2(int clientSd,char *databuf,int nbufs, int bufsize)
-{
-    //cout << "inside test2" << endl;
-    struct iovec vector[nbufs];
-    for (int j = 0; j < nbufs; j++)
-    {
-        vector[j].iov_base = &databuf[j];
-        vector[j].iov_len = bufsize;
-    }
-    writev(clientSd, vector, nbufs);
-
-}
-
-/**
- * Single write test
- * @param clientSd file descriptor of client socket
- * @param databuf data buffer
- * @param nbufs number of buffers
- * @param bufsize buffer size
- */
-void Test3(int clientSd,char *databuf,int nbufs, int bufsize)
-{
-    // cout << "inside test3" << endl;
-    write(clientSd, databuf, nbufs * bufsize);
-}
-
-
 int main(int argc, char *argv[])
 {
-
     // Argument validation
     if ( argc != 7 )
     {
@@ -116,14 +61,12 @@ int main(int argc, char *argv[])
 
     int nbufs = atoi(argv[4]); //the number of data buffers
     int bufsize = atoi(argv[5]); //the size of each data buffer (in bytes)
-    char databuf[nbufs][bufsize];
-    //char *databuf;
+    char databuf[nbufs][bufsize]; // create data buffer
     int clientSD = -1;
 
-    /*
-     * Use getaddrinfo() to get addrinfo structure corresponding to serverName / Port
-	 * This addrinfo structure has internet address which can be used to create a socket too
-     */
+    //Use getaddrinfo() to get addrinfo structure corresponding to serverName / Port
+    //This addrinfo structure has internet address which can be used to create a socket too
+
 
     struct addrinfo hints;
     struct addrinfo *result, *rp;
@@ -174,26 +117,23 @@ int main(int argc, char *argv[])
     }
     freeaddrinfo(result);
 
-    //databuf = new char[BUFFSIZE]; was used in previous code
+    //	Send a message to the server letting it know the number of iterations of the test it will per
+    int msgSent = write(clientSD,&iteration, sizeof(iteration));
+    if (msgSent == -1) {
+        cout << "There was a problem sending the number of reps" << endl;
+        return -1;
+    }
 
-
-    //	Send a message to the server letting it know the number of iterations of the test it will perform
-    send(clientSD, &iteration, sizeof(iteration), 0);
-
-    // Write into the buffer (not sure if required)
-//    for (int i = 0; i < BUFFSIZE; i++)
-//    {
-//        databuf[i] = ' ';
-//    }
-
-    cout << "Testing the Socket"<< endl;
     //Perform the appropriate number of tests with the server and measure the time this takes
+    // initialize chrono variables and start timers before the tests
     std::chrono::time_point<std::chrono::system_clock> start, end;
     start = std::chrono::system_clock::now();
 
     for(int i=0; i < iteration; i++) {
         switch (type) {
             case 1: {
+             /* Multiple writes: invokes the write() system call for each data buffer, thus
+             resulting in calling as many write()s as the number of data buffers, (i.e., nbufs) */
                 for (int j = 0; j < nbufs; j++) {
                     write(clientSD, &databuf[j], bufsize);
                 }
@@ -201,6 +141,9 @@ int main(int argc, char *argv[])
             }
             case 2:
             {
+            /* writev: allocates an array of iovec data structures, each having its *iov_base field
+            point to a different data buffer as well as storing the buffer size in its iov_len field;
+            and thereafter calls writev() to send all data buffers at once. */
                 struct iovec vector[nbufs];
                 for (int j = 0; j < nbufs; j++) {
                     vector[j].iov_base = &databuf[j];
@@ -210,25 +153,27 @@ int main(int argc, char *argv[])
                 break;
             }
             case 3: {
-
+             /* single write: allocates an nbufs-sized array of data buffers, and thereafter calls write()
+             to send this array, (i.e., all data buffers) at once.*/
                 write(clientSD, databuf, nbufs * bufsize);
                 break;
             }
         }
     }
+    // end chrono time
     end = std::chrono::system_clock::now();
     std::chrono::duration<double> elapsed_seconds = end - start;
-    cout << "End of Testing the Socket"<< endl;
-//Receive from the server a message with the number read() system calls it performed
+
+    //Receive from the server a message with the number read() system calls it performed
     int number_of_reads = 0;
-    recv(clientSD, &number_of_reads, sizeof(number_of_reads) , 0);
-//    int bytesRead = read(clientSD, databuf, BUFFSIZE);
-//    cout << "Bytes Read: " << bytesRead << endl;
-//    cout << databuf[0] << endl;
-//Print information about the test (use chrono library to time the
-//Test (1,2, or 3): time = xx usec, #reads = yy, throughput zz Gbps
-    cout << "Elapsed time taken for test: " << elapsed_seconds.count() << "s\n" << "Number of reads: " <<  number_of_reads
-         << "\nThroughput: " << " "  << endl;
+    read(clientSD,&number_of_reads, sizeof(number_of_reads));
+
+
+    //Print information about the test, using chrono library
+    cout << "Test type: " << type << "   nbufs: " << nbufs << "   bufsize: " << bufsize << endl;
+    cout << "Time: " << elapsed_seconds.count() * 1000000 << " usec"
+    << "   Number of reads: " <<  number_of_reads
+    << "   Throughput: " << ( nbufs * bufsize * iteration * 8 * 0.000000001) / elapsed_seconds.count()  << "Gbps" << endl;
 
     close(clientSD);
     return 0;

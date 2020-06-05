@@ -1,4 +1,4 @@
-/*@File: Client.cpp
+/*@File: Server.cpp
 * @Name: Melinda Stannah Stanley Jothiraj
 * @Number: 1978413
 * @Date: 27May2020
@@ -44,18 +44,17 @@ struct clientDataArgs{
 
 void *thread_runner (void *args)
 {
-
     int number_of_reads = 0;
     int total_bytes_read = 0;
     int bytesRead = 0;
     clientDataArgs clientData = *(clientDataArgs*) args;
-    //Receive a message by the client with the number of iterations to perform
+
 
     //Receive a message by the client with the number of iterations to perform
     int iteration = 0;
-    recv(clientData.clientSocket, &iteration, sizeof(iteration) , 0);
+    //recv(clientData.clientSocket, &iteration, sizeof(iteration) , 0);
+    int recv_bytes = read(clientData.clientSocket,&iteration, sizeof(iteration));
 
-    int i = 0;
     //Read from the client the appropriate number of iterations of BUFSIZE amounts of data
     //repeat calling read until you have read a BUFSIZE amount of data
     while(total_bytes_read < iteration*BUFFSIZE ) {
@@ -65,12 +64,11 @@ void *thread_runner (void *args)
             number_of_reads++ ;
         }
         total_bytes_read += bytesRead;
-        i++;
     }
-   // cout << "total_bytes_read" << total_bytes_read << endl;
 
     //	Send the number of read() calls made as an acknowledgment to the client
-    send(clientData.clientSocket, &number_of_reads, sizeof(number_of_reads), 0);
+   // send(clientData.clientSocket, &number_of_reads, sizeof(number_of_reads), 0);
+    write(clientData.clientSocket,&number_of_reads, sizeof(number_of_reads));
    // cout << "number_of_reads" << number_of_reads << endl;
     //Close this connection.
     close(clientData.clientSocket);
@@ -82,7 +80,7 @@ void *thread_runner (void *args)
 
 int main(int argc, char *argv[])
 {
-    
+
     //validate the arguments
     if ( argc != 2 )
     {
@@ -91,19 +89,13 @@ int main(int argc, char *argv[])
     }
 
     int serverPort =  atoi(argv[1]);
-    //char *serverName;
-
-    pthread_t thread[NUM_CONNECTIONS];
-    int thread_num = 0;
 
     //Build address
-    //int port = 12345;
     sockaddr_in acceptSocketAddress;
     bzero((char *)&acceptSocketAddress, sizeof(acceptSocketAddress));
     acceptSocketAddress.sin_family = AF_INET; //use the internet
     acceptSocketAddress.sin_addr.s_addr = htonl(INADDR_ANY); //server listen for any ip address thats trying to connect
     acceptSocketAddress.sin_port = htons(serverPort); //port address
-
 
     //Create socket
     int serverSD = socket(AF_INET, SOCK_STREAM, 0); //sock_stream is use tcp_ip
@@ -118,43 +110,37 @@ int main(int argc, char *argv[])
         cerr << "Bind Failed" << endl;
     }
 
-
-
     //listen and accept
     cout << "listening for client socket"<< endl;
     listen(serverSD, NUM_CONNECTIONS);       //setting number of pending connections
 
     //The main thread of the server will run in a dispatch loop which accepts a new connection.
-    while(1)
+    while(true)
     {
+        //create new socket
         sockaddr_in newSockAddr;
         socklen_t newSockAddrSize = sizeof(newSockAddr);
         //socket of client is returned
         int newSD = accept(serverSD, (sockaddr *) &newSockAddr, &newSockAddrSize);
         if (newSD == -1) {
-            std::cerr << "Error while Accepting on socket\n";
+           // std::cerr << "Error while Accepting on socket\n";
             continue;
         }
-
-       // cout << "Accepted Socket #: " << newSD <<endl;
-
         // create a data buffer of BUFFSIZE
         char databuf[BUFFSIZE];
         bzero(databuf, BUFFSIZE); //zeroed out buffer
 
         //Creates a struct with client information
-        struct clientDataArgs *args = new clientDataArgs;
+        clientDataArgs *args = new clientDataArgs;
         args->clientSocket = newSD;
         args->databuf = databuf;
-
+        pthread_t thread;
         //Creates a thread to service that request
-        pthread_create(&thread[thread_num], NULL, thread_runner, (void*) args);
-        thread_num++;
-        //terminate thread
+        pthread_create(&thread, NULL, thread_runner, (void*) args);
+        //terminate thread by separate thread of execution from thread object
         pthread_detach(pthread_self());
-
     }
-
+    close(serverSD);
     return 0;
 }
 
